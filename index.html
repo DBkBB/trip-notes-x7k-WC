@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="旅行紀錄">
+<meta name="theme-color" content="#0f6b73">
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon.png">
+<title>旅行紀錄</title>
+<style>
+:root{--bg:#eef2f4;--cd:#fff;--tx:#14232e;--mu:#6b7c88;--ac:#0f6b73;--am:#b97a10;--bd:#d5dee3}
+@media(prefers-color-scheme:dark){:root{--bg:#10181d;--cd:#192329;--tx:#e8eef1;--mu:#8fa1ac;--ac:#4cb8c2;--am:#e0a43a;--bd:#2b3a43}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 -apple-system,"PingFang TC",sans-serif;padding:env(safe-area-inset-top) 0 calc(84px + env(safe-area-inset-bottom))}
+h2,h3{font-family:"Songti TC",Georgia,serif;margin:0}
+header{display:flex;gap:8px;padding:12px 14px}
+select,input,textarea,button{font:inherit;color:inherit;border:1px solid var(--bd);border-radius:10px;background:var(--cd);padding:9px 11px;max-width:100%}
+select{flex:1;min-width:0}
+textarea{width:100%;min-height:90px}
+button{cursor:pointer}button.p{background:var(--ac);border-color:var(--ac);color:#fff}
+main{padding:0 14px}
+.day{margin:18px 0 8px;font:600 15px "Songti TC",Georgia,serif;color:var(--ac);border-bottom:2px solid var(--ac);padding-bottom:2px}
+.c{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.c p{margin:0 0 8px;white-space:pre-wrap}
+.ex{color:var(--am);font-weight:600}
+.th{display:flex;flex-wrap:wrap;gap:6px}.th img{width:92px;height:92px;object-fit:cover;border-radius:8px}
+.ac{display:flex;gap:14px;justify-content:flex-end;margin-top:6px}.ac span{color:var(--mu);font-size:14px;cursor:pointer}
+.emp{color:var(--mu);text-align:center;padding:48px 10px}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--cd);border-top:1px solid var(--bd);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+nav button{flex:1;border:0;background:none;color:var(--mu)}nav button.on{color:var(--ac);font-weight:700}
+#add{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;font-size:30px;padding:0;box-shadow:0 3px 10px #0004}
+#fm{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top)) 14px 40px;display:none;z-index:5}
+#fm label{display:block;margin:12px 0 4px;color:var(--mu);font-size:14px}
+#fm input,#fm select{width:100%}.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+.th img.rm{outline:3px solid #c33;opacity:.4}
+.big{font:600 26px "Songti TC",Georgia,serif}
+.bt{display:block;width:100%;margin:8px 0}
+#rep{display:none}
+@media print{body>*:not(#rep){display:none!important}#rep{display:block}}
+</style></head><body>
+<header><select id="sel"></select><button id="nt">＋旅程</button></header>
+<main id="m"></main>
+<button id="add" class="p">＋</button>
+<nav><button data-v="log" class="on">日記</button><button data-v="cost">記帳</button><button data-v="out">匯出</button></nav>
+<div id="fm">
+<h2 id="ft">新增紀錄</h2>
+<div class="row"><div><label>日期</label><input type="date" id="d"></div><div id="tb"><label>時間</label><input type="time" id="tm"></div></div>
+<div id="pl"><label>地點</label><input id="pc" placeholder="例如：清水寺"></div>
+<label id="tl">小筆記</label><textarea id="tx" placeholder="今天發生了什麼？"></textarea>
+<div id="pb"><label>照片（可多選，點縮圖可移除）</label><input type="file" id="ph" accept="image/*" multiple><div class="th" id="pt"></div></div>
+<label id="al">花費（沒有就留空）</label>
+<div class="row"><input type="number" id="amt" inputmode="decimal" placeholder="金額"><input id="cur" list="cl" placeholder="幣別"><datalist id="cl"><option>TWD<option>JPY<option>KRW<option>USD<option>EUR<option>THB<option>HKD<option>CNY</datalist></div>
+<select id="cat" style="margin-top:8px"><option>餐飲<option>交通<option>住宿<option>門票<option>購物<option>其他</select>
+<label>發票／收據照片</label><input type="file" id="rc" accept="image/*"><div class="th" id="rt"></div>
+<div class="row" style="margin-top:20px"><button id="cx">取消</button><button id="sv" class="p">儲存</button></div>
+</div>
+<div id="rep"></div>
+<input type="file" id="imp" accept=".json" hidden>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LS=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k)||'';localStorage.setItem(k,v)}catch(e){return ''}};
+let db,trip=LS('trip'),view='log',ed=null;const urls=[];
+const tx=(s,m,f)=>new Promise((ok,no)=>{const t=db.transaction(s,m),r=f(t.objectStore(s));t.oncomplete=()=>ok(r.result);t.onerror=()=>no(t.error)});
+const all=s=>tx(s,'readonly',st=>st.getAll()),put=(s,o)=>tx(s,'readwrite',st=>st.put(o)),del=(s,k)=>tx(s,'readwrite',st=>st.delete(k));
+const U=b=>{const u=URL.createObjectURL(b);urls.push(u);return u};
+const b2u=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)});
+async function shrink(f){const b=await createImageBitmap(f),k=Math.min(1,1280/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=Math.round(b.width*k);c.height=Math.round(b.height*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);return new Promise(r=>c.toBlob(r,'image/jpeg',.75))}
+const money=(n,c)=>(c||'')+' '+n.toLocaleString(undefined,{maximumFractionDigits:2});
+async function data(){const ts=await all('trips');if(!ts.find(t=>t.id==trip))trip=ts[0]?.id||'';LS('trip',trip);
+ const es=(await all('entries')).filter(e=>e.trip==trip).sort(cmp);return{ts,es}}
+const sums=es=>{const s={};es.filter(e=>e.amt).forEach(e=>{const k=e.cur||'未填幣別',o=s[k]??={t:0,c:{}};o.t+=e.amt;o.c[e.cat]=(o.c[e.cat]||0)+e.amt});return s};
+const cmp=(a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||'')||a.id-b.id,hm=()=>new Date().toTimeString().slice(0,5);
+const meta=e=>(e.time||e.place)?`<div style="color:var(--mu);font-size:14px;margin-bottom:4px">${esc(e.time||'')} ${e.place?'📍'+esc(e.place):''}</div>`:'';
+const sumH=s=>Object.keys(s).map(c=>`<div class="c"><div class="big">${money(s[c].t,c)}</div>${Object.entries(s[c].c).sort((a,b)=>b[1]-a[1]).map(([n,v])=>`<div style="display:flex;justify-content:space-between"><span>${esc(n)}</span><span>${money(v)}</span></div>`).join('')}</div>`).join('');
+async function rows(ts){const n={};ts.forEach(t=>n[t.id]=t.name);return(await all('entries')).filter(e=>e.amt>0).map(e=>({...e,src:e.trip===0?'日常記帳':'旅行：'+(n[e.trip]||'')})).sort(cmp)}
+async function render(){urls.splice(0).forEach(URL.revokeObjectURL);const{ts,es}=await data();
+ $('#sel').innerHTML=ts.map(t=>`<option value="${t.id}"${t.id==trip?' selected':''}>${esc(t.name)}</option>`).join('')||'<option>尚無旅程</option>';
+ $('header').style.display=view=='cost'?'none':'flex';
+ $('#add').style.display=(view=='log'&&trip)||view=='cost'?'block':'none';
+ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v==view));
+ const m=$('#m');
+ if(view=='cost'){const L=await rows(ts),ym=today().slice(0,7);
+  if(!L.length){m.innerHTML='<div class="emp">還沒有花費。按右下角「＋」記一筆；旅行日記裡填的花費也會自動出現在這裡。</div>';return}
+  let h=`<div class="day">本月 ${ym}</div>`+(sumH(sums(L.filter(e=>e.date.startsWith(ym))))||'<div class="emp" style="padding:12px">本月還沒有花費</div>'),last='';
+  for(const e of[...L].reverse()){if(e.date!=last){h+=`<div class="day">${e.date}</div>`;last=e.date}
+   h+=`<div class="c"><div class="ex">${esc(e.cat)} ${money(e.amt,e.cur)}</div>${e.text?`<p>${esc(e.text)}</p>`:''}<div style="color:var(--mu);font-size:14px">${esc(e.src)}${e.place?'｜'+esc(e.place):''}</div>${e.receipt?`<div class="th"><img src="${U(e.receipt)}"></div>`:''}<div class="ac"><span onclick="edit(${e.id})">編輯</span><span onclick="rm(${e.id})">刪除</span></div></div>`}
+  m.innerHTML=h;return}
+ if(view=='log'){
+  if(!trip){m.innerHTML='<div class="emp">按右上角「＋旅程」，建立第一趟旅程。</div>';return}
+  if(!es.length){m.innerHTML='<div class="emp">還沒有紀錄。按右下角「＋」新增第一筆。</div>';return}
+  let h='',last='';
+  for(const e of es){if(e.date!=last){h+=`<div class="day">${e.date}</div>`;last=e.date}
+   h+=`<div class="c">${meta(e)}${e.text?`<p>${esc(e.text)}</p>`:''}<div class="th">${e.photos.map(p=>`<img src="${U(p)}">`).join('')}</div>`+
+   (e.amt?`<p class="ex" style="margin-top:8px">${esc(e.cat)} ${money(e.amt,e.cur)}</p>`:'')+(e.receipt?`<div class="th"><img src="${U(e.receipt)}"></div>`:'')+
+   `<div class="ac"><span onclick="edit(${e.id})">編輯</span><span onclick="rm(${e.id})">刪除</span></div></div>`}
+  m.innerHTML=h;return}
+ const lx=+LS('lastx');
+ m.innerHTML=(trip?`<div class="c"><h3>旅遊報告</h3><p style="color:var(--mu)">把這趟旅程整理成圖文報告，包含去過的地方、每日紀錄和花費。</p>
+  <button class="bt p" onclick="dl()">下載報告（HTML，可離線開啟）</button><button class="bt" onclick="pr()">列印／存成 PDF</button></div>`:'')+
+  `<div class="c"><h3>記帳匯出（Google 試算表）</h3><p style="color:var(--mu)">匯出 CSV 檔，旅行日記裡的花費也會一起匯出。${lx?'上次匯出：'+new Date(lx).toLocaleDateString():''}</p>
+  <select id="xr" style="width:100%"><option value="n">只匯出上次之後新增的</option><option value="m">本月</option><option value="a">全部</option></select>
+  <button class="bt p" onclick="csv()">匯出 CSV</button></div>
+  <div class="c"><h3>備份</h3><p style="color:var(--mu)">包含所有旅程、記帳與照片。出發前和回家後都建議備份一次。</p>
+  <button class="bt" onclick="bk()">匯出備份檔</button><button class="bt" onclick="$('#imp').click()">匯入備份檔</button></div>`+
+  (trip?`<div class="c"><button class="bt" onclick="dt()" style="color:#c33">刪除這趟旅程</button></div>`:'')}
+async function csv(){const{ts}=await data(),L=await rows(ts),v=$('#xr').value,lx=+LS('lastx')||0,ym=today().slice(0,7),q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+ const R=L.filter(e=>v=='a'||(v=='m'&&e.date.startsWith(ym))||(v=='n'&&e.id>lx));
+ if(!R.length){alert('這個範圍內沒有花費可匯出');return}
+ const t=['日期,時間,來源,地點,類別,金額,幣別,備註',...R.map(e=>[q(e.date),q(e.time),q(e.src),q(e.place),q(e.cat),e.amt,q(e.cur),q(e.text)].join(','))].join('\r\n');
+ if(await save(new Blob(['\ufeff'+t],{type:'text/csv'}),'記帳-'+today()+'.csv','text/csv')){LS('lastx',Date.now());render()}}
+const RC='body{font:16px/1.6 -apple-system,"PingFang TC",sans-serif;max-width:760px;margin:0 auto;padding:20px;color:#14232e}h1,h2{font-family:"Songti TC",Georgia,serif}h2{border-bottom:2px solid #0f6b73;color:#0f6b73;margin-top:28px}img{max-width:100%;max-height:340px;border-radius:6px;margin:4px 4px 4px 0}p{white-space:pre-wrap;margin:6px 0}.x{color:#b97a10;font-weight:600}table{border-collapse:collapse;width:100%}td{border-bottom:1px solid #ccd;padding:4px 6px}td:last-child{text-align:right}h2,.i{break-inside:avoid}';
+async function report(){const{ts,es}=await data(),t=ts.find(x=>x.id==trip),s=sums(es);let h=`<style>${RC}</style><h1>${esc(t.name)}</h1><p>${es.length?es[0].date+' ～ '+es[es.length-1].date:''}</p>`;
+ for(const c in s)h+=`<h3>花費總計 ${esc(money(s[c].t,c))}</h3><table>${Object.entries(s[c].c).map(([n,v])=>`<tr><td>${esc(n)}</td><td>${esc(money(v))}</td></tr>`).join('')}</table>`;
+ const pl=[...new Set(es.map(e=>e.place).filter(Boolean))];if(pl.length)h+=`<h3>去過的地方</h3><p>${pl.map(esc).join('、')}</p>`;let last='';for(const e of es){if(e.date!=last){h+=`<h2>${e.date}</h2>`;last=e.date}
+  h+='<div class="i">'+((e.time||e.place)?`<p style="color:#6b7c88">${esc(e.time||'')} ${e.place?'📍'+esc(e.place):''}</p>`:'')+(e.text?`<p>${esc(e.text)}</p>`:'');for(const p of e.photos)h+=`<img src="${await b2u(p)}">`;
+  if(e.amt)h+=`<p class="x">${esc(e.cat)} ${esc(money(e.amt,e.cur))}</p>`;if(e.receipt)h+=`<img src="${await b2u(e.receipt)}" style="max-height:220px">`;h+='</div>'}
+ return h}
+async function save(b,name,type){const f=new File([b],name,{type});if(navigator.canShare?.({files:[f]})){try{await navigator.share({files:[f]});return true}catch(e){if(e.name=='AbortError')return false}}
+ const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();return true}
+async function dl(){const{ts}=await data(),n=ts.find(x=>x.id==trip).name;save(new Blob([`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(n)}</title>`+await report()],{type:'text/html'}),n+'.html','text/html')}
+async function pr(){$('#rep').innerHTML=await report();setTimeout(()=>print(),400)}
+onafterprint=()=>{$('#rep').innerHTML=''};
+async function bk(){const o={trips:await all('trips'),entries:[]};for(const e of await all('entries')){o.entries.push({...e,photos:await Promise.all(e.photos.map(b2u)),receipt:e.receipt?await b2u(e.receipt):null})}
+ save(new Blob([JSON.stringify(o)],{type:'application/json'}),'旅行紀錄備份-'+new Date().toISOString().slice(0,10)+'.json','application/json')}
+$('#imp').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{const o=JSON.parse(await f.text()),B=u=>fetch(u).then(r=>r.blob());
+ for(const t of o.trips)await put('trips',t);
+ for(const e of o.entries){e.photos=await Promise.all(e.photos.map(B));e.receipt=e.receipt?await B(e.receipt):null;await put('entries',e)}
+ trip=o.trips[0]?.id||trip;alert('匯入完成');render()}catch(e){alert('這不是有效的備份檔')}ev.target.value=''};
+async function dt(){if(confirm('確定刪除這趟旅程和所有紀錄？此動作無法復原。')){const{es}=await data();for(const e of es)await del('entries',e.id);await del('trips',trip);trip='';render()}}
+$('#nt').onclick=async()=>{const n=prompt('旅程名稱（例如：2026 京都五日）');if(n&&n.trim()){const id=Date.now();await put('trips',{id,name:n.trim()});trip=id;view='log';render()}};
+$('#sel').onchange=e=>{trip=+e.target.value;LS('trip',trip);render()};
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{view=b.dataset.v;render()});
+const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
+function thumbs(){for(const [k,id] of [['photos','#pt'],['receipt','#rt']]){const l=[].concat(ed[k]||[]);$(id).innerHTML='';l.forEach(b=>{const i=new Image();i.src=U(b);i.onclick=()=>{ed[k]=k=='photos'?ed.photos.filter(x=>x!=b):null;thumbs()};$(id).append(i)})}}
+function form(e){ed=e;const l=e.trip===0;$('#ft').textContent=(e.id?'編輯':'新增')+(l?'花費':'日記');['#tb','#pl','#pb'].forEach(x=>$(x).style.display=l?'none':'block');$('#tl').textContent=l?'備註':'小筆記';$('#al').textContent=l?'花費':'花費（沒有就留空）';$('#tm').value=e.time||(e.id?'':hm());$('#pc').value=e.place||'';$('#d').value=e.date||today();$('#tx').value=e.text||'';$('#amt').value=e.amt||'';$('#cur').value=e.cur||LS('cur');$('#cat').value=e.cat||'餐飲';$('#ph').value='';$('#rc').value='';thumbs();$('#fm').style.display='block';$('#fm').scrollTop=0}
+$('#add').onclick=()=>form({photos:[],receipt:null,...(view=='cost'?{trip:0}:{})});
+window.edit=async id=>form((await all('entries')).find(e=>e.id==id));
+window.rm=async id=>{if(confirm('刪除這筆紀錄？')){await del('entries',id);render()}};
+$('#cx').onclick=()=>$('#fm').style.display='none';
+$('#sv').onclick=async()=>{$('#sv').disabled=true;try{const o={id:ed.id||Date.now(),trip:ed.trip===0?0:(ed.trip||trip),date:$('#d').value||today(),time:ed.trip===0?'':$('#tm').value,place:ed.trip===0?'':$('#pc').value.trim(),text:$('#tx').value.trim(),photos:[...ed.photos],receipt:ed.receipt||null,amt:parseFloat($('#amt').value)||0,cur:$('#cur').value.trim().toUpperCase(),cat:$('#cat').value};
+ for(const f of $('#ph').files)o.photos.push(await shrink(f));if($('#rc').files[0])o.receipt=await shrink($('#rc').files[0]);
+ if(ed.trip===0&&!o.amt){alert('請輸入金額');return}if(!o.text&&!o.photos.length&&!o.amt&&!o.receipt){alert('請至少填寫文字、照片或金額');return}
+ if(o.cur)LS('cur',o.cur);await put('entries',o);$('#fm').style.display='none';render()}catch(e){alert('儲存失敗：'+e.message)}finally{$('#sv').disabled=false}};
+const rq=indexedDB.open('travel',1);
+rq.onupgradeneeded=e=>{e.target.result.createObjectStore('trips',{keyPath:'id'});e.target.result.createObjectStore('entries',{keyPath:'id'})};
+rq.onsuccess=()=>{db=rq.result;render();navigator.storage?.persist?.()};
+rq.onerror=()=>alert('無法使用本機儲存空間。請確認不是在私密瀏覽模式。');
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
